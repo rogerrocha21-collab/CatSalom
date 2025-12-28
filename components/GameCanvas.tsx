@@ -45,8 +45,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
       bomb: { end: 0, total: 25000 }
   });
   
-  const [health, setHealth] = useState(3);
-  const maxHealth = 3;
+  const [health, setHealth] = useState(5);
+  const maxHealth = 5;
 
   // -- Derived Data --
   const currentBiome: BiomeType = BIOME_ORDER[currentBiomeIndex];

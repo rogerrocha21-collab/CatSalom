@@ -23,6 +23,18 @@ const getPathLength = (points: Point[]): number => {
   return length;
 };
 
+// Helper: Calculate Polygon Area using Shoelace Formula
+const getPolygonArea = (points: Point[]): number => {
+  let area = 0;
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    area += points[i].x * points[j].y;
+    area -= points[j].x * points[i].y;
+  }
+  return Math.abs(area) / 2;
+};
+
 // Helper: Get max perpendicular distance of points from the line segment (Start -> End)
 const getMaxDeviation = (points: Point[], start: Point, end: Point): { maxDist: number, index: number, yDiff: number } => {
   let maxDist = 0;
@@ -72,31 +84,47 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
   // -----------------------------------------------------------
   // DETECTOR: CLOSED SHAPES (Circle vs Triangle)
   // -----------------------------------------------------------
-  if (chordLength < pathLength * 0.3 && pathLength > 100) {
+  // Check if start and end are close relative to total length
+  if (chordLength < pathLength * 0.35 && pathLength > 80) {
       const centerX = minX + width / 2;
       const centerY = minY + height / 2;
       
-      // Calculate distances from center to all points
+      // 1. Coefficient of Variation (CV) of Radius
+      // A perfect circle has CV = 0. A triangle has higher CV.
       const radii = points.map(p => Math.hypot(p.x - centerX, p.y - centerY));
       const avgRadius = radii.reduce((a, b) => a + b, 0) / radii.length;
-      
-      // Calculate variance/standard deviation of radius
       const variance = radii.reduce((a, b) => a + Math.pow(b - avgRadius, 2), 0) / radii.length;
       const stdDev = Math.sqrt(variance);
-      const cv = stdDev / avgRadius; // Coefficient of Variation
+      const cv = stdDev / avgRadius; 
 
-      // Visual Ratio check
+      // 2. Roundness (Isoperimetric Quotient approximation)
+      // C = (4 * PI * Area) / Perimeter^2
+      // Circle ~= 1.0, Square ~= 0.78, Triangle ~= 0.60
+      const area = getPolygonArea(points);
+      const perimeter = pathLength + chordLength; // Close the loop
+      const roundness = (4 * Math.PI * area) / (perimeter * perimeter);
+
+      // Visual Aspect Ratio check
       const ratio = width / (height || 1);
       
-      if (ratio > 0.6 && ratio < 1.6) {
-          // Circle has very consistent radius (low CV)
-          // Triangle has alternating far corners and close edges (high CV)
+      if (ratio > 0.5 && ratio < 2.0) {
+          // Robust Classification Logic:
           
-          if (cv < 0.18) {
+          // Case A: Very high roundness -> Definitely a Circle
+          if (roundness > 0.82) {
               return SpellType.CIRCLE;
-          } else if (cv >= 0.18) {
-              // Further check: Count peaks? 
-              // For now, if it's closed, roughly square aspect, but high variance, assume Triangle
+          }
+          
+          // Case B: Very low roundness -> Definitely NOT a circle (likely Triangle)
+          if (roundness < 0.72) {
+              return SpellType.TRIANGLE;
+          }
+
+          // Case C: Ambiguous Roundness (0.72 - 0.82)
+          // Use CV to distinguish. Circles have constant radius, Triangles do not.
+          if (cv < 0.16) {
+              return SpellType.CIRCLE;
+          } else {
               return SpellType.TRIANGLE;
           }
       }
@@ -112,10 +140,10 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
   if (maxDist < chordLength * 0.15) {
       const angle = getAngleDegrees(start, end);
       
-      if (Math.abs(angle) <= 20 || Math.abs(Math.abs(angle) - 180) <= 20) {
+      if (Math.abs(angle) <= 25 || Math.abs(Math.abs(angle) - 180) <= 25) {
           return SpellType.HORIZONTAL;
       }
-      if (Math.abs(Math.abs(angle) - 90) <= 20) {
+      if (Math.abs(Math.abs(angle) - 90) <= 25) {
           return SpellType.VERTICAL;
       }
       return null;

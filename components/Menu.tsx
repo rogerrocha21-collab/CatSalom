@@ -150,13 +150,15 @@ const Menu: React.FC<MenuProps> = ({ onStart, language, setLanguage }) => {
   return (
     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050f18] text-white p-6 animate-fade-in">
       
-      {/* Language Toggle */}
+      {/* Language Toggle - Minimalist Emoji Style */}
       <button 
         onClick={toggleLanguage}
-        className="absolute top-6 right-6 p-2 rounded-full border border-white/10 hover:bg-white/10 transition-colors text-2xl"
-        title="Switch Language"
+        className="absolute top-6 right-6 w-12 h-12 rounded-full border border-white/10 flex items-center justify-center hover:bg-white/10 hover:scale-110 transition-all text-2xl group"
+        title={language === 'pt' ? 'Mudar para Inglês' : 'Switch to Portuguese'}
       >
-        {language === 'pt' ? '🇧🇷' : '🇺🇸'}
+        <span className="group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)] transition-all">
+            {language === 'pt' ? '🇧🇷' : '🇺🇸'}
+        </span>
       </button>
 
       {/* Title */}
