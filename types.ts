@@ -25,7 +25,7 @@ export type BiomeType =
   | 'HOUSE' 
   | 'CEMETERY' 
   | 'FACTORY' 
-  | 'DESERT';
+  | 'ASTRAL';
 
 export interface Enemy {
   id: string;

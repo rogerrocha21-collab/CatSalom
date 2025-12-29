@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GameState, Enemy, Point, SpellType, Particle, BiomeType, Language } from '../types';
 import { recognizeGesture, getSymbolIcon, getSymbolColor } from '../utils/gesture';
-import { LEVEL_SCORES, BIOME_CONFIG, BIOME_ORDER, getTargetScore } from '../utils/gameConfig';
+import { BIOME_CONFIG, BIOME_ORDER, getTargetScore } from '../utils/gameConfig';
 import { Cat, Heart, Shield, Hourglass, Bomb, Pause, Play, Lock } from 'lucide-react';
 
 interface GameCanvasProps {
@@ -52,7 +52,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
   const currentBiome: BiomeType = BIOME_ORDER[currentBiomeIndex];
   const biomeData = BIOME_CONFIG[currentBiome];
   const isBossLevel = currentLevel === 11;
-  const targetScore = getTargetScore(currentLevel, 1 + (currentBiomeIndex * 0.2));
+  
+  // Strict Progression Target
+  const targetScore = getTargetScore(currentBiome, currentLevel);
 
   // Translation Map
   const t = {
@@ -62,7 +64,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
           paused: 'PAUSADO',
           bossDefeated: 'Boss Derrotado',
           levelComplete: 'Fase Completa',
-          totalScore: 'Pontuação Total',
+          levelScore: 'Pontos da Fase',
           nextLevel: 'Próxima Fase'
       },
       en: {
@@ -71,7 +73,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
           paused: 'PAUSED',
           bossDefeated: 'Boss Defeated',
           levelComplete: 'Level Complete',
-          totalScore: 'Total Score',
+          levelScore: 'Level Score',
           nextLevel: 'Next Level'
       }
   }[language];
@@ -103,10 +105,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
         case 3: x = -padding; y = Math.random() * height; break;
     }
 
-    // Difficulty Scaling
-    const difficultyMultiplier = 1 + (currentBiomeIndex * 0.3) + (currentLevel * 0.15);
-    // Reduced base speeds: Was 3.0 (Boss) / 1.2 (Normal) -> Now 2.2 / 0.8
-    const speedBase = isBossLevel ? 2.2 : 0.8;
+    // Difficulty Scaling based on Biome and Level
+    // Biome multiplier effectively speeds up game per area
+    const difficultyMultiplier = 1 + (currentBiomeIndex * 0.25) + (currentLevel * 0.1);
+    
+    // Base speed: Boss levels are faster/chaotic
+    const speedBase = isBossLevel ? 2.5 : 0.8;
     
     // Spell Selection logic - PROGRESSION
     const spellTypes = [SpellType.HORIZONTAL, SpellType.VERTICAL];
@@ -126,8 +130,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
     // Level 9+: Add X (Intersection)
     if (currentLevel > 8 || currentBiomeIndex > 1) spellTypes.push(SpellType.X_SHAPE);
     
-    // Random chance for Z (Lightning) in later stages
-    if (currentLevel > 6 && Math.random() > 0.7) spellTypes.push(SpellType.LIGHTNING);
+    // Lightning only in later areas or high levels
+    if (currentLevel > 8 && currentBiomeIndex > 0 && Math.random() > 0.8) spellTypes.push(SpellType.LIGHTNING);
 
     const symbol = spellTypes[Math.floor(Math.random() * spellTypes.length)];
 
@@ -135,7 +139,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
         id,
         x,
         y,
-        // Reduced multiplier from 0.8 to 0.7 for gentler scaling
         speed: (speedBase + (Math.random() * difficultyMultiplier)) * 0.7,
         symbol,
         color: getSymbolColor(symbol),
@@ -228,7 +231,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
         return;
     }
 
-    // Filter ALL enemies that match the gesture
     const targets = enemiesRef.current.filter(e => e.symbol === gesture);
 
     if (targets.length > 0) {
@@ -236,55 +238,61 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
         let bossSigilsDestroyed = 0;
 
         targets.forEach(target => {
-            // Visual feedback for each killed enemy
             createParticles(target.x, target.y, target.color, 20, true);
             
-            // Logic depending on type
             if (target.isBossSigil) {
                 bossSigilsDestroyed++;
             } else {
-                scoreToAdd += isBossLevel ? 0 : 10 * (1 + currentBiomeIndex);
+                // Score calculation: 10 base * Area Multiplier
+                // Note: This score adds to the LEVEL total.
+                // We use biome index as a rough multiplier for individual kills too.
+                scoreToAdd += isBossLevel ? 0 : 10 * (1 + currentBiomeIndex * 0.5);
             }
         });
 
-        // Remove ALL matched targets from the active enemies list
         const targetIds = new Set(targets.map(t => t.id));
         enemiesRef.current = enemiesRef.current.filter(e => !targetIds.has(e.id));
 
-        // Apply score updates
         if (scoreToAdd > 0) {
-            setScore(prev => prev + scoreToAdd);
+            setScore(prev => prev + Math.ceil(scoreToAdd));
         }
 
-        // Apply Boss damage logic
         if (bossSigilsDestroyed > 0) {
             bossRef.current.currentSigils -= bossSigilsDestroyed;
             if (bossRef.current.currentSigils <= 0) {
+                // Boss Defeated!
+                // Add a big bonus just for satisfaction, but progress is triggered by sigils=0
                 setScore(prev => prev + 1000);
                 handleLevelComplete();
             }
         }
     } else {
-        // Miss (no enemies matched the gesture)
         createParticles(lastPoint.x, lastPoint.y, '#ef4444', 8); 
     }
   };
 
   const handleLevelComplete = useCallback(() => {
+      // Logic to advance level/biome
       if (currentLevel === 11) {
+          // Boss Defeated, move to next biome
           if (currentBiomeIndex < BIOME_ORDER.length - 1) {
               setCurrentBiomeIndex(prev => prev + 1);
               setCurrentLevel(1);
           } else {
+              // Loop back to start (New Game+ style) or End Game?
+              // For now loop back to garden but harder (level 1)
               setCurrentBiomeIndex(0);
               setCurrentLevel(1); 
           }
       } else {
+          // Normal level complete
           setCurrentLevel(prev => prev + 1);
       }
       
       setTotalLevelsCleared(prev => prev + 1);
       setGameState(GameState.LEVEL_COMPLETE);
+      // NOTE: We do NOT reset score here. We reset it when re-entering PLAYING state.
+      // This allows the Level Complete screen to show the score achieved.
   }, [currentLevel, currentBiomeIndex, setGameState]);
 
   const createParticles = (x: number, y: number, color: string, count: number = 10, glow: boolean = false) => {
@@ -293,7 +301,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
             id: Math.random().toString(),
             x,
             y,
-            vx: (Math.random() - 0.5) * 15, // Higher velocity
+            vx: (Math.random() - 0.5) * 15, 
             vy: (Math.random() - 0.5) * 15,
             life: 1.0,
             color,
@@ -304,9 +312,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
   };
 
   const gameLoop = useCallback((timestamp: number) => {
-    // Check Pause
     if (isPaused) {
-        // IMPORTANT: Update lastSpawnTime so we don't accumulate a huge delta while paused
         lastSpawnTimeRef.current = timestamp;
         return; 
     }
@@ -326,7 +332,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
     const centerX = width / 2;
     const centerY = height / 2;
 
-    // -- Update Skill Timers --
     const now = Date.now();
     if (skillsRef.current.shieldActive && now > skillsRef.current.shieldEndTime) {
         skillsRef.current.shieldActive = false;
@@ -338,6 +343,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
     const dt = skillsRef.current.timeScale;
 
     // -- Check Level Progression --
+    // Only check score for levels 1-10. Level 11 is boss mechanics only.
     if (!isBossLevel && score >= targetScore) {
         handleLevelComplete();
         return;
@@ -347,7 +353,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
     ctx.fillStyle = biomeData.bg;
     ctx.fillRect(0, 0, width, height);
     
-    // Grid/Zen Pattern Background
     ctx.strokeStyle = 'rgba(255,255,255,0.03)';
     ctx.lineWidth = 1;
     const gridSize = 50;
@@ -364,7 +369,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
             spawnBossSigils(width, height);
         }
         
-        // Rotate Sigils
         const rotationSpeed = 0.002 * dt;
         enemiesRef.current.forEach(e => {
             if (e.isBossSigil) {
@@ -377,14 +381,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
             }
         });
 
-        // Boss Spawn Projectiles
         if (timestamp - lastSpawnTimeRef.current > (1500 / (1 + currentBiomeIndex * 0.2))) {
              spawnEnemy(timestamp, width, height); 
              lastSpawnTimeRef.current = timestamp;
         }
     } else {
-        // Normal Spawning
-        const spawnRate = 1800 / (1 + (currentLevel * 0.1) + (currentBiomeIndex * 0.2));
+        // Normal Spawning - Use Biome Index to increase spawn rate
+        const spawnRate = 1800 / (1 + (currentLevel * 0.1) + (currentBiomeIndex * 0.3));
         if (timestamp - lastSpawnTimeRef.current > spawnRate) {
             spawnEnemy(timestamp, width, height);
             lastSpawnTimeRef.current = timestamp;
@@ -403,10 +406,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
             enemy.x += Math.cos(angle) * enemy.speed * dt;
             enemy.y += Math.sin(angle) * enemy.speed * dt;
 
-            // Collision
-            // Increased collision range slightly to ensure hits register visually
             const dist = Math.hypot(dx, dy);
-            if (dist < 45) { // Hit player (radius 15 + enemy radius 22 + buffer)
+            if (dist < 45) { 
                 enemiesRef.current.splice(i, 1);
                 
                 if (!skillsRef.current.shieldActive) {
@@ -425,7 +426,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
 
     // -- Render Entities --
 
-    // 1. Draw Boss Overlay
     if (isBossLevel) {
         ctx.save();
         ctx.translate(centerX, centerY);
@@ -439,10 +439,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
         ctx.restore();
     }
 
-    // 2. Draw Player (Cat)
     ctx.save();
     ctx.translate(centerX, centerY);
-    // Shield Visual
     if (skillsRef.current.shieldActive) {
         ctx.strokeStyle = '#60a5fa';
         ctx.lineWidth = 2;
@@ -453,21 +451,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
         ctx.stroke();
         ctx.shadowBlur = 0;
     }
-    // Cat placeholder
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
 
-    // 3. Draw Enemies
     enemiesRef.current.forEach(enemy => {
-        // Outline
         ctx.strokeStyle = enemy.isBossSigil ? '#f87171' : '#FFFFFF';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
         ctx.stroke();
         
-        // Symbol with glow
         ctx.fillStyle = enemy.isBossSigil ? '#f87171' : enemy.color;
         ctx.shadowColor = enemy.color;
         ctx.shadowBlur = 5;
@@ -478,13 +472,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
         ctx.shadowBlur = 0;
     });
 
-    // 4. Particles (Enhanced)
     particlesRef.current.forEach(p => {
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         p.life -= 0.02;
-        
-        // Safety check to prevent negative radius/opacity errors
         if (p.life <= 0) return;
 
         ctx.globalAlpha = Math.max(0, p.life);
@@ -494,18 +485,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
             ctx.shadowBlur = 10;
         }
         ctx.beginPath();
-        
-        // Prevent negative radius error
         const radius = Math.max(0, p.size * p.life);
         ctx.arc(p.x, p.y, radius, 0, Math.PI * 2); 
-        
         ctx.fill();
         ctx.shadowBlur = 0;
         ctx.globalAlpha = 1.0;
     });
     particlesRef.current = particlesRef.current.filter(p => p.life > 0);
 
-    // 5. Draw Gesture Trace
     if (drawingPointsRef.current.length > 0) {
         ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 4;
@@ -527,7 +514,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
 
   // -- Event Listeners & Setup --
   
-  // 1. Initialization Effect (Runs ONCE when entering Playing state)
+  // 1. Initialization Effect
+  // IMPORTANT: Resets game data when entering PLAYING state
   useEffect(() => {
     if (gameState === GameState.PLAYING) {
         enemiesRef.current = [];
@@ -535,11 +523,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
         bossRef.current.active = false;
         setIsPaused(false);
         setHealth(maxHealth); 
+        // FIX: Reset score on every level start to allow progression check to work correctly
+        setScore(0);
         lastSpawnTimeRef.current = performance.now();
     }
-  }, [gameState]); // Dependencies: Only changes when GameState changes
+  }, [gameState, setScore]);
 
-  // 2. Loop Management Effect (Runs whenever Loop function updates)
+  // 2. Loop Management Effect
   useEffect(() => {
     if (gameState !== GameState.PLAYING) return;
 
@@ -551,9 +541,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
     id = requestAnimationFrame(loop);
 
     return () => cancelAnimationFrame(id);
-  }, [gameState, gameLoop]); // Safely restarts loop when closures update
+  }, [gameState, gameLoop]);
 
-  // Input Handling
   const handleInputStart = (x: number, y: number) => {
       if (gameState !== GameState.PLAYING || isPaused) return;
       isDrawingRef.current = true;
@@ -610,7 +599,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
                          <div className="text-red-500 font-bold tracking-widest animate-pulse pointer-events-none">{t.bossBattle}</div>
                     )}
                     
-                    {/* Pause Button - Ensure it stops propagation to canvas inputs */}
                     <button 
                         onClick={(e) => { e.stopPropagation(); setIsPaused(!isPaused); }}
                         className="pointer-events-auto p-2 hover:bg-white/10 rounded-full transition-colors z-50"
@@ -674,7 +662,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
               <h2 className="text-3xl font-thin text-white mb-4 tracking-widest uppercase">
                   {currentLevel === 11 ? t.bossDefeated : t.levelComplete}
               </h2>
-              <div className="text-white/60 mb-8">{t.totalScore}: {score}</div>
+              <div className="text-white/60 mb-8">{t.levelScore}: {score}</div>
               <button 
                 onClick={() => setGameState(GameState.PLAYING)}
                 className="px-8 py-3 border border-white text-white hover:bg-white hover:text-black transition-all uppercase tracking-widest text-sm"
