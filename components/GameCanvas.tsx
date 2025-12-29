@@ -105,7 +105,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
 
     // Difficulty Scaling
     const difficultyMultiplier = 1 + (currentBiomeIndex * 0.3) + (currentLevel * 0.15);
-    const speedBase = isBossLevel ? 3.0 : 1.2;
+    // Reduced base speeds: Was 3.0 (Boss) / 1.2 (Normal) -> Now 2.2 / 0.8
+    const speedBase = isBossLevel ? 2.2 : 0.8;
     
     // Spell Selection logic
     const spellTypes = [SpellType.HORIZONTAL, SpellType.VERTICAL];
@@ -121,7 +122,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
         id,
         x,
         y,
-        speed: (speedBase + (Math.random() * difficultyMultiplier)) * 0.8,
+        // Reduced multiplier from 0.8 to 0.7 for gentler scaling
+        speed: (speedBase + (Math.random() * difficultyMultiplier)) * 0.7,
         symbol,
         color: getSymbolColor(symbol),
         radius: 22,

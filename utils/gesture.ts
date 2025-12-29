@@ -63,8 +63,9 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
   const linearity = startEndDist / (totalLength || 1);
 
   // -- 2. CLOSED SHAPES (Circle / Triangle) --
-  // Rule: Start and End points must be effectively touching relative to the total drawing size
-  if (startEndDist < totalLength * 0.35 && totalLength > 80) {
+  // Relaxed Rule: Start and End points must be effectively touching relative to the total drawing size
+  // Increased tolerance from 0.35 to 0.45 to allow more open circles
+  if (startEndDist < totalLength * 0.45 && totalLength > 80) {
       const centerX = minX + width / 2;
       const centerY = minY + height / 2;
       
@@ -77,28 +78,25 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
       const variance = radii.reduce((a, b) => a + Math.pow(b - avgRadius, 2), 0) / radii.length;
       const cv = Math.sqrt(variance) / avgRadius; 
 
-      if (aspectRatio > 0.4 && aspectRatio < 2.5) {
-          if (roundness > 0.80) return SpellType.CIRCLE;
-          if (roundness < 0.72) return SpellType.TRIANGLE;
-          return cv < 0.18 ? SpellType.CIRCLE : SpellType.TRIANGLE;
+      if (aspectRatio > 0.5 && aspectRatio < 2.0) { // Slight tighten on aspect ratio for better distinction
+          // Relaxed Roundness thresholds:
+          // Circle ideal = 1.0. Sloppy circle can be 0.7-0.8.
+          // Triangle ideal = 0.6. Sloppy triangle can be 0.5-0.65.
+          
+          if (roundness > 0.72) return SpellType.CIRCLE; // Was 0.80
+          if (roundness < 0.60) return SpellType.TRIANGLE; // Was 0.72
+          
+          // CV (Coefficient of Variation) check for the middle ground:
+          // Circles have constant radius (Low CV). Triangles have high variance.
+          return cv < 0.25 ? SpellType.CIRCLE : SpellType.TRIANGLE; // CV relaxed from 0.18 to 0.25
       }
   }
 
-  // -- 3. LINEAR SHAPES (Horizontal / Vertical) --
-  // High linearity required for lines
-  if (linearity > 0.85) {
-      if (width > height * 2.0) {
-          return SpellType.HORIZONTAL;
-      }
-      if (height > width * 2.0) {
-          return SpellType.VERTICAL;
-      }
-  }
-
-  // -- 4. VERTEX SHAPES (V, ^) --
+  // -- 3. VERTEX SHAPES (V, ^) --
+  // Moved BEFORE Linear shapes to ensure fast/wide Vs aren't misclassified as lines.
   
-  // Safety Check: Must have a minimum size
-  if (height > 30 && width > 20) {
+  // Safety Check: Must have a minimum size to be a distinct V shape
+  if (height > 15 && width > 15) {
       const totalPoints = points.length;
       
       // Determine relative position of vertex in the stroke sequence (0.0 to 1.0)
@@ -106,27 +104,41 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
       const nadirRatio = maxYIndex / totalPoints;
 
       // CARET (^) Logic:
-      // 1. The highest point (minY) is roughly in the middle of the stroke (not start/end).
-      // 2. Start and End are significantly lower (higher Y) than the apex.
+      // Vertex (minY) is roughly in the middle of the stroke.
       if (apexRatio > 0.2 && apexRatio < 0.8) {
           const startDrop = start.y - minY; // Distance from start to top
           const endDrop = end.y - minY;     // Distance from end to top
           
-          if (startDrop > height * 0.4 && endDrop > height * 0.4) {
+          // Relaxed threshold: sides need to drop only 25% of height or 15px
+          // This accepts flatter carets.
+          if (startDrop > height * 0.25 && endDrop > height * 0.25) {
               return SpellType.CARET;
           }
       }
 
       // V-SHAPE (v) Logic:
-      // 1. The lowest point (maxY) is roughly in the middle of the stroke.
-      // 2. Start and End are significantly higher (lower Y) than the nadir.
+      // Vertex (maxY) is roughly in the middle of the stroke.
       if (nadirRatio > 0.2 && nadirRatio < 0.8) {
           const startRise = maxY - start.y; // Distance from bottom to start
           const endRise = maxY - end.y;     // Distance from bottom to end
           
-          if (startRise > height * 0.4 && endRise > height * 0.4) {
+          // Relaxed threshold: sides need to rise only 25% of height
+          // This accepts checkmark-style Vs and wide Vs.
+          if (startRise > height * 0.25 && endRise > height * 0.25) {
               return SpellType.V_SHAPE;
           }
+      }
+  }
+
+  // -- 4. LINEAR SHAPES (Horizontal / Vertical) --
+  // High linearity required for lines
+  // Only check this if it wasn't a V/Caret or Circle/Triangle
+  if (linearity > 0.80) {
+      if (width > height * 1.5) {
+          return SpellType.HORIZONTAL;
+      }
+      if (height > width * 1.5) {
+          return SpellType.VERTICAL;
       }
   }
 
@@ -141,9 +153,8 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
 
       if (startsLeftEndsRight && startsTopEndsBottom) {
            // A Z usually has low linearity because it zig-zags
-           if (linearity < 0.8) {
-                return SpellType.LIGHTNING;
-           }
+           // Relaxed logic: If it wasn't caught by V or Line, and goes TopLeft->BotRight...
+           return SpellType.LIGHTNING;
       }
   }
 
