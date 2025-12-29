@@ -18,6 +18,7 @@ const Menu: React.FC<MenuProps> = ({ onStart, language, setLanguage }) => {
       grimoire: "Grimório",
       magicGestures: "Gestos Mágicos",
       gesturesDesc: "Desenhe os símbolos que aparecem acima dos inimigos para exorcizá-los.",
+      centerTip: "Dica: Realize os gestos preferencialmente no centro da tela.",
       biomesBoss: "Biomas & Chefes",
       biomesDesc: "Sobreviva a 10 fases para enfrentar o Boss do bioma.",
       biomesTip: "Dica: Destrua os sigilos vermelhos que protegem o Boss.",
@@ -36,6 +37,7 @@ const Menu: React.FC<MenuProps> = ({ onStart, language, setLanguage }) => {
       grimoire: "Grimoire",
       magicGestures: "Magic Gestures",
       gesturesDesc: "Draw the symbols appearing above enemies to exorcise them.",
+      centerTip: "Tip: Perform gestures preferably in the center of the screen.",
       biomesBoss: "Biomes & Bosses",
       biomesDesc: "Survive 10 waves to face the Biome Boss.",
       biomesTip: "Tip: Destroy red sigils protecting the Boss.",
@@ -93,6 +95,9 @@ const Menu: React.FC<MenuProps> = ({ onStart, language, setLanguage }) => {
                         <span>{text.magicGestures}</span>
                     </div>
                     <p className="text-white/60">{text.gesturesDesc}</p>
+                    <p className="text-xs text-blue-200/80 mt-1 italic max-w-[250px] leading-tight border border-blue-500/30 p-2 rounded bg-blue-500/10">
+                        {text.centerTip}
+                    </p>
                     <div className="flex justify-center gap-6 mt-2 opacity-80 font-mono text-lg">
                         <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">—</span></div>
                         <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">|</span></div>
@@ -150,14 +155,14 @@ const Menu: React.FC<MenuProps> = ({ onStart, language, setLanguage }) => {
   return (
     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050f18] text-white p-6 animate-fade-in">
       
-      {/* Language Toggle - Minimalist Emoji Style */}
+      {/* Language Toggle - Minimalist Initials */}
       <button 
         onClick={toggleLanguage}
-        className="absolute top-6 right-6 w-12 h-12 rounded-full border border-white/10 flex items-center justify-center hover:bg-white/10 hover:scale-110 transition-all text-2xl group"
+        className="absolute top-6 right-6 w-12 h-12 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10 hover:border-white transition-all group bg-white/5 backdrop-blur-sm"
         title={language === 'pt' ? 'Mudar para Inglês' : 'Switch to Portuguese'}
       >
-        <span className="group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)] transition-all">
-            {language === 'pt' ? '🇧🇷' : '🇺🇸'}
+        <span className="font-mono font-bold text-xs tracking-wider text-white/80 group-hover:text-white transition-colors">
+            {language === 'pt' ? 'BR' : 'USA'}
         </span>
       </button>
 

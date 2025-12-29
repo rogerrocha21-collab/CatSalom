@@ -36,11 +36,21 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
   
   // -- 1. BOUNDING BOX ANALYSIS --
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  points.forEach(p => {
-    minX = Math.min(minX, p.x);
-    maxX = Math.max(maxX, p.x);
-    minY = Math.min(minY, p.y);
-    maxY = Math.max(maxY, p.y);
+  let minYIndex = 0; // Index of the highest point (visual top)
+  let maxYIndex = 0; // Index of the lowest point (visual bottom)
+
+  points.forEach((p, index) => {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    
+    if (p.y < minY) {
+        minY = p.y;
+        minYIndex = index;
+    }
+    if (p.y > maxY) {
+        maxY = p.y;
+        maxYIndex = index;
+    }
   });
   
   const width = maxX - minX;
@@ -85,30 +95,42 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
       }
   }
 
-  // -- 4. COMPLEX OPEN SHAPES (Z, ^, v) --
+  // -- 4. VERTEX SHAPES (V, ^) --
   
-  // Safety Check: Complex shapes must have a minimum size to be recognized.
-  // This prevents small shaky lines from being detected as 'V' or 'Z'.
-  if (height < 20 || width < 20) return null;
+  // Safety Check: Must have a minimum size
+  if (height > 30 && width > 20) {
+      const totalPoints = points.length;
+      
+      // Determine relative position of vertex in the stroke sequence (0.0 to 1.0)
+      const apexRatio = minYIndex / totalPoints;
+      const nadirRatio = maxYIndex / totalPoints;
 
-  const yDiffStartEnd = Math.abs(start.y - end.y);
-  
-  // V and Caret check
-  if (yDiffStartEnd < height * 0.6) {
-      const avgY = (start.y + end.y) / 2;
-      const distToTop = avgY - minY;
-      const distToBottom = maxY - avgY;
-
-      // Caret (^): Mass goes UP.
-      if (distToTop > height * 0.6 && distToTop > distToBottom) {
-          return SpellType.CARET;
+      // CARET (^) Logic:
+      // 1. The highest point (minY) is roughly in the middle of the stroke (not start/end).
+      // 2. Start and End are significantly lower (higher Y) than the apex.
+      if (apexRatio > 0.2 && apexRatio < 0.8) {
+          const startDrop = start.y - minY; // Distance from start to top
+          const endDrop = end.y - minY;     // Distance from end to top
+          
+          if (startDrop > height * 0.4 && endDrop > height * 0.4) {
+              return SpellType.CARET;
+          }
       }
 
-      // V-Shape (v): Mass goes DOWN.
-      if (distToBottom > height * 0.6 && distToBottom > distToTop) {
-          return SpellType.V_SHAPE;
+      // V-SHAPE (v) Logic:
+      // 1. The lowest point (maxY) is roughly in the middle of the stroke.
+      // 2. Start and End are significantly higher (lower Y) than the nadir.
+      if (nadirRatio > 0.2 && nadirRatio < 0.8) {
+          const startRise = maxY - start.y; // Distance from bottom to start
+          const endRise = maxY - end.y;     // Distance from bottom to end
+          
+          if (startRise > height * 0.4 && endRise > height * 0.4) {
+              return SpellType.V_SHAPE;
+          }
       }
   }
+
+  // -- 5. COMPLEX SHAPES (Lightning / Z) --
 
   // LIGHTNING (Z)
   // Must be roughly square or wide
@@ -118,14 +140,10 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
       const startsTopEndsBottom = start.y < end.y;
 
       if (startsLeftEndsRight && startsTopEndsBottom) {
-           // Basic Z structure check: does it zig-zag?
-           // We can check the middle point vs start/end
-           const midIndex = Math.floor(points.length / 2);
-           const mid = points[midIndex];
-           
-           // In a Z, the middle is usually to the left of the "diagonal down" path
-           // But simply returning it here if other checks failed is usually sufficient for this game play feel
-           return SpellType.LIGHTNING;
+           // A Z usually has low linearity because it zig-zags
+           if (linearity < 0.8) {
+                return SpellType.LIGHTNING;
+           }
       }
   }
 
