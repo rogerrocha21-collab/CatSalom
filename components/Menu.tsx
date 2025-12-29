@@ -167,8 +167,9 @@ const Menu: React.FC<MenuProps> = ({ onStart, language, setLanguage }) => {
       </button>
 
       {/* Title */}
-      <h1 className="text-6xl font-thin tracking-[0.2em] mb-12 uppercase font-serif text-white/90 text-center">
-        CatSalom
+      <h1 className="flex flex-col items-center text-6xl font-thin tracking-[0.2em] mb-12 uppercase font-serif text-white/90 text-center gap-2">
+        <span>Cat</span>
+        <span>Salom</span>
       </h1>
 
       {/* Center Character */}

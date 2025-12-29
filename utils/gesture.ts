@@ -64,8 +64,8 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
 
   // -- 2. CLOSED SHAPES (Circle / Triangle) --
   // Relaxed Rule: Start and End points must be effectively touching relative to the total drawing size
-  // Increased tolerance from 0.35 to 0.45 to allow more open circles
-  if (startEndDist < totalLength * 0.45 && totalLength > 80) {
+  // Increased tolerance significantly to 0.50 (50% of length) to allow spirals/open loops
+  if (startEndDist < totalLength * 0.50 && totalLength > 60) {
       const centerX = minX + width / 2;
       const centerY = minY + height / 2;
       
@@ -78,17 +78,28 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
       const variance = radii.reduce((a, b) => a + Math.pow(b - avgRadius, 2), 0) / radii.length;
       const cv = Math.sqrt(variance) / avgRadius; 
 
-      if (aspectRatio > 0.5 && aspectRatio < 2.0) { // Slight tighten on aspect ratio for better distinction
-          // Relaxed Roundness thresholds:
-          // Circle ideal = 1.0. Sloppy circle can be 0.7-0.8.
-          // Triangle ideal = 0.6. Sloppy triangle can be 0.5-0.65.
+      // Very wide aspect ratio tolerance for tall '0's or wide ovals
+      if (aspectRatio > 0.3 && aspectRatio < 3.3) { 
           
-          if (roundness > 0.72) return SpellType.CIRCLE; // Was 0.80
-          if (roundness < 0.60) return SpellType.TRIANGLE; // Was 0.72
+          // Heuristic Priority:
+          // 1. High Roundness -> Circle
+          // 2. Low Radius Variance -> Circle
+          // 3. Low Roundness + High Variance -> Triangle
+
+          // Relaxed thresholds again:
+          // A perfect circle is 1.0. A square is ~0.78. A messy oval can be 0.6.
+          if (roundness > 0.60) return SpellType.CIRCLE; 
           
-          // CV (Coefficient of Variation) check for the middle ground:
-          // Circles have constant radius (Low CV). Triangles have high variance.
-          return cv < 0.25 ? SpellType.CIRCLE : SpellType.TRIANGLE; // CV relaxed from 0.18 to 0.25
+          // CV: Lower is better. 0.0 is perfect circle. 
+          // Relaxed from 0.25 to 0.35 to allow wobbly hands.
+          if (cv < 0.35) return SpellType.CIRCLE; 
+
+          // If it wasn't a circle, check for Triangle traits (pointy, high variance)
+          // Triangles have low roundness (usually < 0.6) and high CV.
+          if (roundness < 0.55 && cv > 0.25) return SpellType.TRIANGLE;
+          
+          // Fallback: If it's a closed loop and ambiguous, bias towards Circle as it's the most common "closed" error
+          return SpellType.CIRCLE; 
       }
   }
 
@@ -109,9 +120,8 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
           const startDrop = start.y - minY; // Distance from start to top
           const endDrop = end.y - minY;     // Distance from end to top
           
-          // Relaxed threshold: sides need to drop only 25% of height or 15px
-          // This accepts flatter carets.
-          if (startDrop > height * 0.25 && endDrop > height * 0.25) {
+          // Relaxed threshold: sides need to drop only 20% of height
+          if (startDrop > height * 0.20 && endDrop > height * 0.20) {
               return SpellType.CARET;
           }
       }
@@ -122,9 +132,8 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
           const startRise = maxY - start.y; // Distance from bottom to start
           const endRise = maxY - end.y;     // Distance from bottom to end
           
-          // Relaxed threshold: sides need to rise only 25% of height
-          // This accepts checkmark-style Vs and wide Vs.
-          if (startRise > height * 0.25 && endRise > height * 0.25) {
+          // Relaxed threshold: sides need to rise only 20% of height
+          if (startRise > height * 0.20 && endRise > height * 0.20) {
               return SpellType.V_SHAPE;
           }
       }
