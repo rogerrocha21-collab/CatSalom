@@ -13,8 +13,8 @@ export enum SpellType {
   LIGHTNING = 'LIGHTNING',   // Z
   C_SHAPE = 'C_SHAPE',       // C
   S_SHAPE = 'S_SHAPE',       // S
-  N_SHAPE = 'N_SHAPE',       // N
-  T_SHAPE = 'T_SHAPE',       // T (or 7 shape)
+  EIGHT_SHAPE = 'EIGHT_SHAPE', // 8 (Replaces N)
+  SEVEN_SHAPE = 'SEVEN_SHAPE', // 7 (Replaces T)
   X_SHAPE = 'X_SHAPE'        // X (Cross)
 }
 

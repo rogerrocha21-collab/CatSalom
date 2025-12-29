@@ -118,11 +118,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
     // Level 2+: Add C (Simple Curve)
     if (currentLevel > 1 || currentBiomeIndex > 0) spellTypes.push(SpellType.C_SHAPE);
     
-    // Level 3+: Add T (Simple Line Combo)
-    if (currentLevel > 2 || currentBiomeIndex > 0) spellTypes.push(SpellType.T_SHAPE);
+    // Level 3+: Add 7 (was T)
+    if (currentLevel > 2 || currentBiomeIndex > 0) spellTypes.push(SpellType.SEVEN_SHAPE);
     
-    // Level 5+: Add N (Zig Zag)
-    if (currentLevel > 4 || currentBiomeIndex > 0) spellTypes.push(SpellType.N_SHAPE);
+    // Level 5+: Add 8 (was N)
+    if (currentLevel > 4 || currentBiomeIndex > 0) spellTypes.push(SpellType.EIGHT_SHAPE);
     
     // Level 7+: Add S (Complex Curve)
     if (currentLevel > 6 || currentBiomeIndex > 0) spellTypes.push(SpellType.S_SHAPE);
@@ -165,8 +165,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
       // Boss uses a mix of complex symbols
       const bossSpells = [
           SpellType.C_SHAPE, 
-          SpellType.T_SHAPE, 
-          SpellType.N_SHAPE, 
+          SpellType.SEVEN_SHAPE, 
+          SpellType.EIGHT_SHAPE, 
           SpellType.S_SHAPE, 
           SpellType.X_SHAPE, 
           SpellType.LIGHTNING
@@ -631,19 +631,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
             <div className="absolute bottom-8 w-full flex justify-center gap-6 pointer-events-auto z-30">
                 <SkillButton 
                     icon={<Shield size={20} />} 
-                    isUnlocked={totalLevelsCleared >= 10}
+                    isUnlocked={totalLevelsCleared >= 5}
                     cooldownInfo={cooldowns.shield}
                     onClick={() => activateSkill('shield')}
                 />
                 <SkillButton 
                     icon={<Hourglass size={20} />} 
-                    isUnlocked={totalLevelsCleared >= 15}
+                    isUnlocked={totalLevelsCleared >= 10}
                     cooldownInfo={cooldowns.hourglass}
                     onClick={() => activateSkill('hourglass')}
                 />
                 <SkillButton 
                     icon={<Bomb size={20} />} 
-                    isUnlocked={totalLevelsCleared >= 30}
+                    isUnlocked={totalLevelsCleared >= 15}
                     cooldownInfo={cooldowns.bomb}
                     onClick={() => activateSkill('bomb')}
                 />

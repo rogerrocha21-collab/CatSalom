@@ -102,9 +102,9 @@ const Menu: React.FC<MenuProps> = ({ onStart, language, setLanguage }) => {
                         <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">—</span></div>
                         <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">|</span></div>
                         <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">C</span></div>
-                        <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">N</span></div>
+                        <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">7</span></div>
+                        <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">8</span></div>
                         <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">S</span></div>
-                        <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">T</span></div>
                         <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">X</span></div>
                         <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">Z</span></div>
                     </div>
@@ -131,17 +131,17 @@ const Menu: React.FC<MenuProps> = ({ onStart, language, setLanguage }) => {
                         <div className="flex flex-col items-center border border-white/10 p-2 rounded bg-white/5">
                             <Shield className="text-white mb-1" size={24} strokeWidth={1.5} />
                             <span className="text-[10px] mt-1 uppercase">{text.shield}</span>
-                            <span className="text-[8px] opacity-50">{text.level} 10</span>
+                            <span className="text-[8px] opacity-50">{text.level} 5</span>
                         </div>
                         <div className="flex flex-col items-center border border-white/10 p-2 rounded bg-white/5">
                             <Hourglass className="text-white mb-1" size={24} strokeWidth={1.5} />
                             <span className="text-[10px] mt-1 uppercase">{text.time}</span>
-                            <span className="text-[8px] opacity-50">{text.level} 15</span>
+                            <span className="text-[8px] opacity-50">{text.level} 10</span>
                         </div>
                         <div className="flex flex-col items-center border border-white/10 p-2 rounded bg-white/5">
                             <Bomb className="text-white mb-1" size={24} strokeWidth={1.5} />
                             <span className="text-[10px] mt-1 uppercase">{text.bomb}</span>
-                            <span className="text-[8px] opacity-50">{text.level} 30</span>
+                            <span className="text-[8px] opacity-50">{text.level} 15</span>
                         </div>
                     </div>
                 </div>
