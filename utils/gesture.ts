@@ -39,7 +39,14 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
   let minYIndex = 0; // Index of the highest point (visual top)
   let maxYIndex = 0; // Index of the lowest point (visual bottom)
 
+  // Also calculate total X travel to detect zig-zags
+  let totalAbsDx = 0;
+
   points.forEach((p, index) => {
+    if (index > 0) {
+        totalAbsDx += Math.abs(p.x - points[index - 1].x);
+    }
+
     if (p.x < minX) minX = p.x;
     if (p.x > maxX) maxX = p.x;
     
@@ -154,16 +161,27 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
   // -- 5. COMPLEX SHAPES (Lightning / Z) --
 
   // LIGHTNING (Z)
-  // Must be roughly square or wide
-  if (aspectRatio > 0.5 && aspectRatio < 3.0 && totalLength > 60) {
-      // Must have distinct direction changes
-      const startsLeftEndsRight = start.x < end.x;
-      const startsTopEndsBottom = start.y < end.y;
+  // Logic: A Z moves Right -> Left -> Right.
+  // This causes the total X distance traveled to be significantly larger than the bounding box width.
+  // Ratio = TotalAbsDx / Width.
+  // Line = ~1.0. V = ~1.0. Triangle = ~2.0. Z = ~3.0.
+  
+  if (totalLength > 40 && aspectRatio > 0.2 && aspectRatio < 5.0) {
+      const xTravelRatio = totalAbsDx / (width || 1);
+      const isGeneralDown = start.y < end.y + (height * 0.2); // Allows slightly upward finish but mostly down
+      
+      // Strong check: High X-backtracking
+      // Threshold > 1.3 separates it from V and Line
+      if (xTravelRatio > 1.3 && isGeneralDown) {
+          return SpellType.LIGHTNING;
+      }
 
-      if (startsLeftEndsRight && startsTopEndsBottom) {
-           // A Z usually has low linearity because it zig-zags
-           // Relaxed logic: If it wasn't caught by V or Line, and goes TopLeft->BotRight...
-           return SpellType.LIGHTNING;
+      // Fallback check: Low linearity diagonal that is NOT a V or Triangle
+      // If the user draws a "Lightning Bolt" (DownRight -> Left -> DownRight) without much overlap
+      // Linearity will be low (< 0.85) because it zig-zags.
+      const startsLeftEndsRight = start.x < end.x;
+      if (startsLeftEndsRight && isGeneralDown && linearity < 0.85) {
+          return SpellType.LIGHTNING;
       }
   }
 
