@@ -10,11 +10,12 @@ export type Language = 'pt' | 'en';
 export enum SpellType {
   HORIZONTAL = 'HORIZONTAL', // —
   VERTICAL = 'VERTICAL',     // |
-  CARET = 'CARET',           // ^
   LIGHTNING = 'LIGHTNING',   // Z
-  V_SHAPE = 'V_SHAPE',       // v
-  CIRCLE = 'CIRCLE',         // O
-  TRIANGLE = 'TRIANGLE'      // Δ
+  C_SHAPE = 'C_SHAPE',       // C
+  S_SHAPE = 'S_SHAPE',       // S
+  N_SHAPE = 'N_SHAPE',       // N
+  T_SHAPE = 'T_SHAPE',       // T (or 7 shape)
+  X_SHAPE = 'X_SHAPE'        // X (Cross)
 }
 
 export type BiomeType = 

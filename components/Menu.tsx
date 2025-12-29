@@ -98,10 +98,15 @@ const Menu: React.FC<MenuProps> = ({ onStart, language, setLanguage }) => {
                     <p className="text-xs text-blue-200/80 mt-1 italic max-w-[250px] leading-tight border border-blue-500/30 p-2 rounded bg-blue-500/10">
                         {text.centerTip}
                     </p>
-                    <div className="flex justify-center gap-6 mt-2 opacity-80 font-mono text-lg">
+                    <div className="flex justify-center flex-wrap gap-4 mt-2 opacity-80 font-mono text-lg">
                         <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">—</span></div>
                         <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">|</span></div>
-                        <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">^</span></div>
+                        <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">C</span></div>
+                        <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">N</span></div>
+                        <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">S</span></div>
+                        <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">T</span></div>
+                        <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">X</span></div>
+                        <div className="flex flex-col items-center gap-1"><span className="border border-white/30 px-3 py-1 rounded">Z</span></div>
                     </div>
                 </div>
 

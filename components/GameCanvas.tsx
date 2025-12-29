@@ -108,14 +108,27 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
     // Reduced base speeds: Was 3.0 (Boss) / 1.2 (Normal) -> Now 2.2 / 0.8
     const speedBase = isBossLevel ? 2.2 : 0.8;
     
-    // Spell Selection logic
+    // Spell Selection logic - PROGRESSION
     const spellTypes = [SpellType.HORIZONTAL, SpellType.VERTICAL];
-    if (currentLevel > 2 || currentBiomeIndex > 0) spellTypes.push(SpellType.CARET);
-    if (currentLevel > 4 || currentBiomeIndex > 0) spellTypes.push(SpellType.V_SHAPE);
-    if (currentLevel > 6 || currentBiomeIndex > 0) spellTypes.push(SpellType.LIGHTNING);
-    if (currentLevel > 8 || currentBiomeIndex > 1) spellTypes.push(SpellType.CIRCLE);
-    if (currentLevel > 5 && currentBiomeIndex > 0) spellTypes.push(SpellType.TRIANGLE); 
     
+    // Level 2+: Add C (Simple Curve)
+    if (currentLevel > 1 || currentBiomeIndex > 0) spellTypes.push(SpellType.C_SHAPE);
+    
+    // Level 3+: Add T (Simple Line Combo)
+    if (currentLevel > 2 || currentBiomeIndex > 0) spellTypes.push(SpellType.T_SHAPE);
+    
+    // Level 5+: Add N (Zig Zag)
+    if (currentLevel > 4 || currentBiomeIndex > 0) spellTypes.push(SpellType.N_SHAPE);
+    
+    // Level 7+: Add S (Complex Curve)
+    if (currentLevel > 6 || currentBiomeIndex > 0) spellTypes.push(SpellType.S_SHAPE);
+    
+    // Level 9+: Add X (Intersection)
+    if (currentLevel > 8 || currentBiomeIndex > 1) spellTypes.push(SpellType.X_SHAPE);
+    
+    // Random chance for Z (Lightning) in later stages
+    if (currentLevel > 6 && Math.random() > 0.7) spellTypes.push(SpellType.LIGHTNING);
+
     const symbol = spellTypes[Math.floor(Math.random() * spellTypes.length)];
 
     const newEnemy: Enemy = {
@@ -146,10 +159,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
       const centerY = height / 2;
       const radius = 130;
 
+      // Boss uses a mix of complex symbols
+      const bossSpells = [
+          SpellType.C_SHAPE, 
+          SpellType.T_SHAPE, 
+          SpellType.N_SHAPE, 
+          SpellType.S_SHAPE, 
+          SpellType.X_SHAPE, 
+          SpellType.LIGHTNING
+      ];
+
       for (let i = 0; i < sigilCount; i++) {
           const angle = (i / sigilCount) * Math.PI * 2;
-          const spellTypes = [SpellType.HORIZONTAL, SpellType.VERTICAL, SpellType.CARET, SpellType.V_SHAPE, SpellType.LIGHTNING, SpellType.CIRCLE, SpellType.TRIANGLE];
-          const symbol = spellTypes[i % spellTypes.length];
+          const symbol = bossSpells[i % bossSpells.length];
 
           enemiesRef.current.push({
               id: `boss-sigil-${i}`,
@@ -452,7 +474,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
         ctx.font = 'bold 22px monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(getSymbolIcon(enemy.symbol), enemy.x, enemy.y - 38);
+        ctx.fillText(getSymbolIcon(enemy.symbol), enemy.x, enemy.y);
         ctx.shadowBlur = 0;
     });
 
