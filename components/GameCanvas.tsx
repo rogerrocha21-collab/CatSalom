@@ -113,7 +113,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
     if (currentLevel > 4 || currentBiomeIndex > 0) spellTypes.push(SpellType.V_SHAPE);
     if (currentLevel > 6 || currentBiomeIndex > 0) spellTypes.push(SpellType.LIGHTNING);
     if (currentLevel > 8 || currentBiomeIndex > 1) spellTypes.push(SpellType.CIRCLE);
-    if (currentLevel > 5 && currentBiomeIndex > 0) spellTypes.push(SpellType.TRIANGLE); // New Gesture
+    if (currentLevel > 5 && currentBiomeIndex > 0) spellTypes.push(SpellType.TRIANGLE); 
     
     const symbol = spellTypes[Math.floor(Math.random() * spellTypes.length)];
 
@@ -178,7 +178,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
           setCooldowns(prev => ({...prev, hourglass: { end: now + 20000, total: 20000 }}));
       }
       else if (skill === 'bomb') {
-          const explosionRadius = 500;
           createParticles(window.innerWidth/2, window.innerHeight/2, '#FFFFFF', 50, true);
           
           enemiesRef.current = enemiesRef.current.filter(e => {
@@ -205,34 +204,44 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
         return;
     }
 
-    const catX = window.innerWidth / 2;
-    const catY = window.innerHeight / 2;
+    // Filter ALL enemies that match the gesture
+    const targets = enemiesRef.current.filter(e => e.symbol === gesture);
 
-    const sortedEnemies = [...enemiesRef.current].sort((a, b) => {
-        const distA = Math.hypot(a.x - catX, a.y - catY);
-        const distB = Math.hypot(b.x - catX, b.y - catY);
-        return distA - distB;
-    });
+    if (targets.length > 0) {
+        let scoreToAdd = 0;
+        let bossSigilsDestroyed = 0;
 
-    const target = sortedEnemies.find(e => e.symbol === gesture);
+        targets.forEach(target => {
+            // Visual feedback for each killed enemy
+            createParticles(target.x, target.y, target.color, 20, true);
+            
+            // Logic depending on type
+            if (target.isBossSigil) {
+                bossSigilsDestroyed++;
+            } else {
+                scoreToAdd += isBossLevel ? 0 : 10 * (1 + currentBiomeIndex);
+            }
+        });
 
-    if (target) {
-        // SUCCESS KILL
-        createParticles(target.x, target.y, target.color, 20, true);
-        
-        enemiesRef.current = enemiesRef.current.filter(e => e.id !== target.id);
-        
-        if (target.isBossSigil) {
-            bossRef.current.currentSigils--;
+        // Remove ALL matched targets from the active enemies list
+        const targetIds = new Set(targets.map(t => t.id));
+        enemiesRef.current = enemiesRef.current.filter(e => !targetIds.has(e.id));
+
+        // Apply score updates
+        if (scoreToAdd > 0) {
+            setScore(prev => prev + scoreToAdd);
+        }
+
+        // Apply Boss damage logic
+        if (bossSigilsDestroyed > 0) {
+            bossRef.current.currentSigils -= bossSigilsDestroyed;
             if (bossRef.current.currentSigils <= 0) {
                 setScore(prev => prev + 1000);
                 handleLevelComplete();
             }
-        } else {
-            const pts = isBossLevel ? 0 : 10 * (1 + currentBiomeIndex);
-            setScore(prev => prev + pts);
         }
     } else {
+        // Miss (no enemies matched the gesture)
         createParticles(lastPoint.x, lastPoint.y, '#ef4444', 8); 
     }
   };
@@ -271,11 +280,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
   };
 
   const gameLoop = useCallback((timestamp: number) => {
-    if (gameState !== GameState.PLAYING) return;
-    
-    // Check Pause - This logic is correct. It creates a loop that effectively does nothing but wait.
+    // Check Pause
     if (isPaused) {
-        frameIdRef.current = requestAnimationFrame(gameLoop);
+        // IMPORTANT: Update lastSpawnTime so we don't accumulate a huge delta while paused
+        lastSpawnTimeRef.current = timestamp;
         return; 
     }
 
@@ -372,8 +380,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
             enemy.y += Math.sin(angle) * enemy.speed * dt;
 
             // Collision
+            // Increased collision range slightly to ensure hits register visually
             const dist = Math.hypot(dx, dy);
-            if (dist < 40) { // Hit player
+            if (dist < 45) { // Hit player (radius 15 + enemy radius 22 + buffer)
                 enemiesRef.current.splice(i, 1);
                 
                 if (!skillsRef.current.shieldActive) {
@@ -490,10 +499,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
         ctx.shadowBlur = 0;
     }
 
-    frameIdRef.current = requestAnimationFrame(gameLoop);
   }, [gameState, score, targetScore, isBossLevel, currentBiomeIndex, currentLevel, handleLevelComplete, biomeData, isPaused, t]);
 
   // -- Event Listeners & Setup --
+  
+  // 1. Initialization Effect (Runs ONCE when entering Playing state)
   useEffect(() => {
     if (gameState === GameState.PLAYING) {
         enemiesRef.current = [];
@@ -501,10 +511,23 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, score,
         bossRef.current.active = false;
         setIsPaused(false);
         setHealth(maxHealth); 
-        frameIdRef.current = requestAnimationFrame(gameLoop);
+        lastSpawnTimeRef.current = performance.now();
     }
-    return () => cancelAnimationFrame(frameIdRef.current);
-  }, [gameState, gameLoop]);
+  }, [gameState]); // Dependencies: Only changes when GameState changes
+
+  // 2. Loop Management Effect (Runs whenever Loop function updates)
+  useEffect(() => {
+    if (gameState !== GameState.PLAYING) return;
+
+    let id: number;
+    const loop = (time: number) => {
+        gameLoop(time);
+        id = requestAnimationFrame(loop);
+    };
+    id = requestAnimationFrame(loop);
+
+    return () => cancelAnimationFrame(id);
+  }, [gameState, gameLoop]); // Safely restarts loop when closures update
 
   // Input Handling
   const handleInputStart = (x: number, y: number) => {

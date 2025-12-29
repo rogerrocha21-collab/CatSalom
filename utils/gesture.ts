@@ -1,14 +1,5 @@
 import { Point, SpellType } from '../types';
 
-// Helper: Calculate angle in degrees between two points
-const getAngleDegrees = (p1: Point, p2: Point): number => {
-  const dy = p2.y - p1.y;
-  const dx = p2.x - p1.x;
-  let theta = Math.atan2(dy, dx); // radians
-  theta *= 180 / Math.PI; // degrees
-  return theta;
-};
-
 // Helper: Distance between two points
 const getDistance = (p1: Point, p2: Point): number => {
   return Math.hypot(p2.x - p1.x, p2.y - p1.y);
@@ -35,42 +26,15 @@ const getPolygonArea = (points: Point[]): number => {
   return Math.abs(area) / 2;
 };
 
-// Helper: Get max perpendicular distance of points from the line segment (Start -> End)
-const getMaxDeviation = (points: Point[], start: Point, end: Point): { maxDist: number, index: number, yDiff: number } => {
-  let maxDist = 0;
-  let index = -1;
-  let yDiffOfPeak = 0;
-
-  // Line eq: Ax + By + C = 0
-  const A = start.y - end.y;
-  const B = end.x - start.x;
-  const C = start.x * end.y - end.x * start.y;
-  const denominator = Math.sqrt(A*A + B*B);
-
-  if (denominator === 0) return { maxDist: 0, index: 0, yDiff: 0 };
-
-  for (let i = 0; i < points.length; i++) {
-    const p = points[i];
-    const dist = Math.abs(A * p.x + B * p.y + C) / denominator;
-    if (dist > maxDist) {
-      maxDist = dist;
-      index = i;
-      yDiffOfPeak = p.y - start.y;
-    }
-  }
-
-  return { maxDist, index, yDiff: yDiffOfPeak };
-};
-
 export const recognizeGesture = (points: Point[]): SpellType | null => {
-  if (points.length < 5) return null;
+  if (points.length < 8) return null; // Ignore tiny scribbles
 
   const start = points[0];
   const end = points[points.length - 1];
-  const pathLength = getPathLength(points);
-  const chordLength = getDistance(start, end);
+  const totalLength = getPathLength(points);
+  const startEndDist = getDistance(start, end);
   
-  // Calculate bounding box
+  // -- 1. BOUNDING BOX ANALYSIS --
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   points.forEach(p => {
     minX = Math.min(minX, p.x);
@@ -78,94 +42,90 @@ export const recognizeGesture = (points: Point[]): SpellType | null => {
     minY = Math.min(minY, p.y);
     maxY = Math.max(maxY, p.y);
   });
+  
   const width = maxX - minX;
   const height = maxY - minY;
   
-  // -----------------------------------------------------------
-  // DETECTOR: CLOSED SHAPES (Circle vs Triangle)
-  // -----------------------------------------------------------
-  // Check if start and end are close relative to total length
-  if (chordLength < pathLength * 0.35 && pathLength > 80) {
+  // Aspect Ratio: Width / Height. 
+  const aspectRatio = width / (height || 1); 
+
+  // Linearity: How straight is the line? 1.0 = Perfect line.
+  const linearity = startEndDist / (totalLength || 1);
+
+  // -- 2. CLOSED SHAPES (Circle / Triangle) --
+  // Rule: Start and End points must be effectively touching relative to the total drawing size
+  if (startEndDist < totalLength * 0.35 && totalLength > 80) {
       const centerX = minX + width / 2;
       const centerY = minY + height / 2;
       
-      // 1. Coefficient of Variation (CV) of Radius
-      // A perfect circle has CV = 0. A triangle has higher CV.
+      const area = getPolygonArea(points);
+      const perimeter = totalLength + startEndDist; 
+      const roundness = (4 * Math.PI * area) / (perimeter * perimeter);
+
       const radii = points.map(p => Math.hypot(p.x - centerX, p.y - centerY));
       const avgRadius = radii.reduce((a, b) => a + b, 0) / radii.length;
       const variance = radii.reduce((a, b) => a + Math.pow(b - avgRadius, 2), 0) / radii.length;
-      const stdDev = Math.sqrt(variance);
-      const cv = stdDev / avgRadius; 
+      const cv = Math.sqrt(variance) / avgRadius; 
 
-      // 2. Roundness (Isoperimetric Quotient approximation)
-      // C = (4 * PI * Area) / Perimeter^2
-      // Circle ~= 1.0, Square ~= 0.78, Triangle ~= 0.60
-      const area = getPolygonArea(points);
-      const perimeter = pathLength + chordLength; // Close the loop
-      const roundness = (4 * Math.PI * area) / (perimeter * perimeter);
-
-      // Visual Aspect Ratio check
-      const ratio = width / (height || 1);
-      
-      if (ratio > 0.5 && ratio < 2.0) {
-          // Robust Classification Logic:
-          
-          // Case A: Very high roundness -> Definitely a Circle
-          if (roundness > 0.82) {
-              return SpellType.CIRCLE;
-          }
-          
-          // Case B: Very low roundness -> Definitely NOT a circle (likely Triangle)
-          if (roundness < 0.72) {
-              return SpellType.TRIANGLE;
-          }
-
-          // Case C: Ambiguous Roundness (0.72 - 0.82)
-          // Use CV to distinguish. Circles have constant radius, Triangles do not.
-          if (cv < 0.16) {
-              return SpellType.CIRCLE;
-          } else {
-              return SpellType.TRIANGLE;
-          }
+      if (aspectRatio > 0.4 && aspectRatio < 2.5) {
+          if (roundness > 0.80) return SpellType.CIRCLE;
+          if (roundness < 0.72) return SpellType.TRIANGLE;
+          return cv < 0.18 ? SpellType.CIRCLE : SpellType.TRIANGLE;
       }
   }
 
-  // -----------------------------------------------------------
-  // DETECTOR: LINEAR SHAPES
-  // -----------------------------------------------------------
-
-  // 2. Is it a LINE? (Horizontal or Vertical)
-  const { maxDist } = getMaxDeviation(points, start, end);
-  
-  if (maxDist < chordLength * 0.15) {
-      const angle = getAngleDegrees(start, end);
-      
-      if (Math.abs(angle) <= 25 || Math.abs(Math.abs(angle) - 180) <= 25) {
+  // -- 3. LINEAR SHAPES (Horizontal / Vertical) --
+  // High linearity required for lines
+  if (linearity > 0.85) {
+      if (width > height * 2.0) {
           return SpellType.HORIZONTAL;
       }
-      if (Math.abs(Math.abs(angle) - 90) <= 25) {
+      if (height > width * 2.0) {
           return SpellType.VERTICAL;
       }
-      return null;
   }
 
-  // 3. Is it a SHAPE? (^, v, Z)
+  // -- 4. COMPLEX OPEN SHAPES (Z, ^, v) --
   
-  // Normalize Y to check for V or Caret
+  // Safety Check: Complex shapes must have a minimum size to be recognized.
+  // This prevents small shaky lines from being detected as 'V' or 'Z'.
+  if (height < 20 || width < 20) return null;
+
   const yDiffStartEnd = Math.abs(start.y - end.y);
   
-  if (yDiffStartEnd < height * 0.5 && height > 30) {
-      const isCaret = minY < Math.min(start.y, end.y) - height * 0.5;
-      const isV = maxY > Math.max(start.y, end.y) + height * 0.5;
-      
-      if (isCaret && !isV) return SpellType.CARET;
-      if (isV && !isCaret) return SpellType.V_SHAPE;
+  // V and Caret check
+  if (yDiffStartEnd < height * 0.6) {
+      const avgY = (start.y + end.y) / 2;
+      const distToTop = avgY - minY;
+      const distToBottom = maxY - avgY;
+
+      // Caret (^): Mass goes UP.
+      if (distToTop > height * 0.6 && distToTop > distToBottom) {
+          return SpellType.CARET;
+      }
+
+      // V-Shape (v): Mass goes DOWN.
+      if (distToBottom > height * 0.6 && distToBottom > distToTop) {
+          return SpellType.V_SHAPE;
+      }
   }
 
   // LIGHTNING (Z)
-  if (start.y < end.y - height * 0.5 && start.x < end.x - width * 0.5) {
-      if (width > 30 && height > 30) {
-          return SpellType.LIGHTNING;
+  // Must be roughly square or wide
+  if (aspectRatio > 0.5 && aspectRatio < 3.0 && totalLength > 60) {
+      // Must have distinct direction changes
+      const startsLeftEndsRight = start.x < end.x;
+      const startsTopEndsBottom = start.y < end.y;
+
+      if (startsLeftEndsRight && startsTopEndsBottom) {
+           // Basic Z structure check: does it zig-zag?
+           // We can check the middle point vs start/end
+           const midIndex = Math.floor(points.length / 2);
+           const mid = points[midIndex];
+           
+           // In a Z, the middle is usually to the left of the "diagonal down" path
+           // But simply returning it here if other checks failed is usually sufficient for this game play feel
+           return SpellType.LIGHTNING;
       }
   }
 
@@ -190,6 +150,8 @@ export const getSymbolColor = (type: SpellType): string => {
         case SpellType.TRIANGLE: return '#fbbf24'; // Amber
         case SpellType.LIGHTNING: return '#fef08a'; // Yellow
         case SpellType.CIRCLE: return '#a5f3fc'; // Cyan
+        case SpellType.CARET: return '#f472b6'; // Pink
+        case SpellType.V_SHAPE: return '#c084fc'; // Purple
         default: return '#FFFFFF';
     }
 };
